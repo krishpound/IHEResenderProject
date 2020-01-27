@@ -24,6 +24,7 @@ public class ApiHandler {
     		ClientResponse resp=null;
     		String name = "CPound";
     		String password = "J9h4c81997!";
+    		String jobStatus;
     		String authString = name + ":" + password;
     		String base64encodedString = Base64.getEncoder().encodeToString(authString.getBytes("utf-8"));
     		//System.out.println("Base64 Encoded String (Basic) :" + base64encodedString+"\n");
@@ -36,9 +37,26 @@ public class ApiHandler {
     		System.out.println(className + ": response from server - "+resp.getStatus());
     		jObj = (JSONObject) jsonParser.parse(resp.getEntity(String.class));
     		if (api.contains("/iheKeys")) {
+    			jobStatus = jObj.get("JobStatus").toString();
+    			if(jobStatus.equalsIgnoreCase("Running")) {
+    				System.out.println("\n\nQuery is still running on "+jObj.get("Instance").toString());
+    				System.out.println("Please wait a few minutes and run this job again.");
+    				System.out.println("Halting Execution");
+    				System.exit(-9);
+    			}
     			jsonArray = (JSONArray) jObj.get("IHEKeys");
     			System.out.println(className + ": api returned "+jsonArray.size()+" IHE record keys from instance "+jObj.get("Instance") + "\n");
     		}
+    		if (api.contains("/iheQuery")) {
+    			jsonArray = (JSONArray) jObj.get("JOB");
+    			System.out.println(className + ": api returned "+jsonArray.size()+" IHE record keys from instance "+jObj.get("Instance") + "\n");
+    		}
+    		if (api.contains("/iheResender")) {
+    			jsonArray = (JSONArray) jObj.get("ResendInformation");
+    			System.out.println(className + ": api returned "+jsonArray.size()+" IHE record keys from instance "+jObj.get("Instance") + "\n");
+    		}
+    		
+    		
     	}
     	catch(IOException ioe) {
     		System.out.println("IOException");

@@ -8,15 +8,15 @@ public class IHEKeyObject implements Comparator<IHEKeyObject>{
 	private String messageid;
 	private String name;
 	private String timestamp;
-	private String resendtarget;
+	private String status;
 	
 	public IHEKeyObject() {}
-	public IHEKeyObject(String instance, String messageid, String name, String timestamp, String resendtarget) {
+	public IHEKeyObject(String instance, String messageid, String name, String timestamp, String status) {
 		this.instance=instance;
 		this.messageid=messageid;
 		this.name=name;
 		this.timestamp=timestamp;
-		this.resendtarget=resendtarget;
+		this.status=status;
 	}
 	public int compare(IHEKeyObject obj1, IHEKeyObject obj2) {
         return obj1.getTimestamp().compareTo(obj2.getTimestamp());
@@ -45,18 +45,18 @@ public class IHEKeyObject implements Comparator<IHEKeyObject>{
 	public String getTimestamp() {
 		return this.timestamp;
 	}
-	public void setResendtarget(String s) {
-		this.resendtarget=s;
+	public void setStatus(String s) {
+		this.status=s;
 	}
-	public String getResendtarget() {
-		return this.resendtarget;
+	public String getStatus() {
+		return this.status;
 	}
 	public String toString() {
 		return "instance = " + this.instance 
 							+ " messageid = " + this.messageid
 							+ " name = " + this.name
 							+ " timestamp = " + this.timestamp
-							+ " resendtarget = " + this.resendtarget;
+							+ " status = " + this.status;
 							
 	}
 }
