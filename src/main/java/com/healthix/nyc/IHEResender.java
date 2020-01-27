@@ -46,8 +46,12 @@ public class IHEResender {
 	 *  PLEASE CONFIGURE THE PROPERTIES BELOW VERY CAREFULLY FOR PRODUCTION!!!!
 	 */
 	private static String ResendFile = path + "MERGED_SORTED_IHE_KEYS.txt";
-	private static String instance1Url = "http://dev-healthix:57772/csp/healthix/util/iheResender";
-	private static String instance2Url = "http://dev2-healthix:57772/csp/healthix/util/iheResender";
+	//private static String instance1Url = "http://dev-healthix:57772/csp/healthix/util/iheResender";
+	//private static String instance2Url = "http://dev2-healthix:57772/csp/healthix/util/iheResender";
+	private static String instance1 = "AGIHE";
+	private static String instance2 = "AGPUSH";
+	private static String instance1Url = "http://192.168.130.20:57772/csp/healthix/util/iheResender";
+	private static String instance2Url = "http://192.168.130.21:57772/csp/healthix/util/iheResender";
 	private static String resendTarget = "BHIX.IHE.XDSb.Repository.AutoReplace";
 	
     public static void main(String[] args) {
@@ -69,19 +73,22 @@ public class IHEResender {
     		 Scanner scanner = new Scanner(resendKeysFile);
     	      while (scanner.hasNextLine()) {
     	        String data = scanner.nextLine();
+    	        
+    	        System.out.println("data = "+data);
+    	        
     	        String parms[] = data.split("\t");
     	        
     	        if(parms[4].equalsIgnoreCase("OK")) {
     	        	resendToInstance = parms[0];
     	        	resendMessageID = parms[1];
-    	        	if(resendToInstance.equalsIgnoreCase("HXDEV")) resendUrl = instance1Url;
-    	        	if(resendToInstance.equalsIgnoreCase("HXDEV2")) resendUrl = instance2Url;
+    	        	if(resendToInstance.equalsIgnoreCase(instance1)) resendUrl = instance1Url;
+    	        	if(resendToInstance.equalsIgnoreCase(instance2)) resendUrl = instance2Url;
     	        	queryString = "?MessageID="+resendMessageID+"&ResendTarget="+resendTarget;
     	        	if (resendList.contains(resendToInstance+resendMessageID)){
     	        		System.out.println(resendToInstance + ": Skipping messageID="+resendMessageID+" because it is a duplicate");
     	        		System.out.println(resendToInstance + ": Skipping messageID="+resendMessageID+" because it is a duplicate\n");
-    	        		if(resendToInstance.equalsIgnoreCase("HXDEV")) instance1DuplicateCount++;
-    	        		if(resendToInstance.equalsIgnoreCase("HXDEV2")) instance2DuplicateCount++;
+    	        		if(resendToInstance.equalsIgnoreCase(instance1)) instance1DuplicateCount++;
+    	        		if(resendToInstance.equalsIgnoreCase(instance2)) instance2DuplicateCount++;
     	        	}
     	        	else {
     	        		
@@ -92,8 +99,8 @@ public class IHEResender {
     	        			System.out.println(resendToInstance + ": Resend for " + rObj.get("MessageID") + " to Target: " + rObj.get("ResendTarget") + " Status = " + rObj.get("Status"));
     	        			logWriter.write(resendToInstance + ": Resend for " + rObj.get("MessageID") + " to Target: " + rObj.get("ResendTarget") + " Status = " + rObj.get("Status") + "\n");
     	        		}
-    	        		if(resendToInstance.equalsIgnoreCase("HXDEV")) instance1ResendCount++;
-    	        		if(resendToInstance.equalsIgnoreCase("HXDEV2")) instance2ResendCount++;
+    	        		if(resendToInstance.equalsIgnoreCase(instance1)) instance1ResendCount++;
+    	        		if(resendToInstance.equalsIgnoreCase(instance2)) instance2ResendCount++;
     	        		totalResendCount++;
     	        		resendList.add(resendToInstance+resendMessageID);
     	        		Thread.sleep(1000);
@@ -108,10 +115,10 @@ public class IHEResender {
     	     
      		System.out.println("\nEXECUTION SUMMARY");
      		System.out.println("==============================================================");
-     		System.out.println("Total IHE Messages Replayed to Instance1: " + instance1ResendCount);
-     		System.out.println("Total Duplicate IHE Messages Suppressed for Instance1: " + instance1DuplicateCount);
-     		System.out.println("Total IHE Messages Replayed to Instance2: " + instance2ResendCount);
-     		System.out.println("Total Duplicate IHE Messages Suppressed for Instance2: " + instance2DuplicateCount);
+     		System.out.println("Total IHE Messages Replayed to " + instance1 + ": " + instance1ResendCount);
+     		System.out.println("Total Duplicate IHE Messages Suppressed for " + instance1 + ": " + instance1DuplicateCount);
+     		System.out.println("Total IHE Messages Replayed to " + instance2 + ": " + instance2ResendCount);
+     		System.out.println("Total Duplicate IHE Messages Suppressed for " + instance2 + ": " + instance2DuplicateCount);
      		System.out.println("Total Bad Message Count: "+badMessageCount);
      		System.out.println("Total IHE Messages Replayed to Both Servers: " + totalResendCount);
      		System.out.println("==============================================================");
@@ -119,10 +126,10 @@ public class IHEResender {
      		
      		logWriter.write("\nEXECUTION SUMMARY\n");
      		logWriter.write("==============================================================\n");
-     		logWriter.write("Total IHE Messages Replayed to Instance1: " + instance1ResendCount+"\n");
-     		logWriter.write("Total Duplicate IHE Messages Suppressed for Instance1: " + instance1DuplicateCount+"\n");
-     		logWriter.write("Total IHE Messages Replayed to Instance2: " + instance2ResendCount+"\n");
-     		logWriter.write("Total Duplicate IHE Messages Suppressed for Instance2: " + instance2DuplicateCount+"\n");
+     		logWriter.write("Total IHE Messages Replayed to " + instance1 + ": " + instance1ResendCount+"\n");
+     		logWriter.write("Total Duplicate IHE Messages Suppressed for " + instance1 + ": " + instance1DuplicateCount+"\n");
+     		logWriter.write("Total IHE Messages Replayed to " + instance2 + ": " + instance2ResendCount+"\n");
+     		logWriter.write("Total Duplicate IHE Messages Suppressed for " + instance2 + ": " + instance2DuplicateCount+"\n");
      		logWriter.write("Total Bad Message Count: "+badMessageCount+"\n");
      		logWriter.write("Total IHE Messages Replayed to Both Servers: " + totalResendCount+"\n");
      		logWriter.write("==============================================================\n");

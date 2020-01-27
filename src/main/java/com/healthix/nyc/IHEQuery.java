@@ -27,16 +27,22 @@ public class IHEQuery {
 	private static String jpattern = "yyyy/MM/dd hh:mm:ss";
 	private static SimpleDateFormat fileDatePattern = new SimpleDateFormat(fpattern);
 	private static SimpleDateFormat jobDatePattern = new SimpleDateFormat(jpattern);
-	private static String devUrl = "http://dev-healthix:57772/csp/healthix/util/iheQuery";
+	//private static String devUrl = "http://dev-healthix:57772/csp/healthix/util/iheQuery";
+	private static String stageAG4Url = "http://192.168.130.20:57772/csp/healthix/util/iheQuery";
+	private static String stageAG5Url = "http://192.168.130.21:57772/csp/healthix/util/iheQuery";
 	private static String SourceConfigName = "HS.IHE.XDSb.Repository.Services";
 	private static String TargetConfigName = "BHIX.IHE.XDSb.Repository.AutoReplace";
-	private static String OID = "1.2.840.114350.1.13.382.2.7.3.688884.100";  //Brookdale University
-	private static String StartDateTime = "201711010000";
-	private static String EndDateTime = "201712010000";
+	//private static String OID = "1.2.840.114350.1.13.382.2.7.3.688884.100";  //Brookdale University
+	
+	private static String OID = "2.16.840.1.113883.3.7598.0306";  //for testing in Stage only
+	
+	//yyyymmddHHmm
+	private static String StartDateTime = "202001010000";
+	private static String EndDateTime = "202001270000";
 	private static String queryString = "?SourceConfigName=" + SourceConfigName + "&TargetConfigName=" + TargetConfigName + "&OID=" + OID + "&StartDateTime=" + StartDateTime + "&EndDateTime=" + EndDateTime;
 	private static String sqlQuery = "SELECT %nolock mh.ID, x.id from ens.messageheader mh join hs_message.xmlmessage x on (mh.messagebodyid = x.id) where mh.sourceconfigname = ? and mh.targetconfigname = ? and x.samldata_organizationoid = ? and mh.timecreated between ? and ? and mh.type = 'Request' order by mh.id asc";
-	private static String instance1 = "HXDEV1";
-	private static String instance2 = "HXDEV2";
+	private static String instance1 = "AGIHE";
+	private static String instance2 = "AGPUSH";
 	private static String outputPath = "c:/home/en928/";
 	private static String logFile = outputPath + "/logs/" + "IHEQuery_log_";
 	private static BufferedWriter logWriter;
@@ -79,7 +85,7 @@ public class IHEQuery {
     		System.out.println("\n"+className+": Executing query on "+instance1 + " " + jobDatePattern.format(new Date()));
     		logWriter.write("\n"+ className+": Executing query on " + instance1 + " " + jobDatePattern.format(new Date()) +"\n");
     		JSONArray iheJobObj1 = new JSONArray();
-    		iheJobObj1 = ApiHandler.Call(devUrl+queryString,"Cache",className);
+    		iheJobObj1 = ApiHandler.Call(stageAG4Url+queryString,"Cache",className);
     		for(int i=0;i<iheJobObj1.size();i++) {  
     			JSONObject jObj1= (JSONObject) iheJobObj1.get(i);
     			System.out.println("TaskId " + jObj1.get("TaskId") + " started on " + jObj1.get("Instance"));
@@ -90,7 +96,7 @@ public class IHEQuery {
     		System.out.println("\n"+className+": Executing query on "+instance2 + " " + jobDatePattern.format(new Date()));
     		logWriter.write("\n"+ className+": Executing query on " + instance2 + " " + jobDatePattern.format(new Date()) +"\n");
     		JSONArray iheJobObj2 = new JSONArray();
-    		iheJobObj2 = ApiHandler.Call(devUrl+queryString,"Cache",className);
+    		iheJobObj2 = ApiHandler.Call(stageAG5Url+queryString,"Cache",className);
     		for(int j=0;j<iheJobObj2.size();j++) {  
     			JSONObject jObj2 = (JSONObject) iheJobObj2.get(j);
     			System.out.println("TaskId " + jObj2.get("TaskId") + " started on " + jObj2.get("Instance"));
