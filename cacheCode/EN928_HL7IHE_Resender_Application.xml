@@ -1,0 +1,1062 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25" zv="Cache for UNIX (Red Hat Enterprise Linux for x86-64) 2018.1.2 (Build 309_5_19317U)" ts="2020-01-26 21:05:12">
+<Class name="Healthix.Common.Util.ResenderHL7">
+<IncludeCode>EnsUtil</IncludeCode>
+<Super>%RegisteredObject</Super>
+<TimeChanged>65402,63987.291795</TimeChanged>
+<TimeCreated>65400,42583.068287</TimeCreated>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Chris. Jira EN-928.  20200122.
+
+]]></Content>
+</UDLText>
+
+<Property name="sqlQuery">
+<Type>%String</Type>
+<InitialExpression>"SELECT %nolock mh.ID,m.rawContent FROM Ens.MessageHeader mh join enslib_hl7.message m on (m.id = mh.messagebodyid) WHERE mh.SourceConfigName = ? AND mh.TargetConfigName = ? and mh.timecreated between ? AND ? ORDER BY ID ASC"</InitialExpression>
+<Parameter name="MAXLEN" value="5000"/>
+</Property>
+
+<Property name="sourceConfigName">
+<Type>%String</Type>
+</Property>
+
+<Property name="targetConfigName">
+<Type>%String</Type>
+</Property>
+
+<Property name="startTime">
+<Type>%String</Type>
+</Property>
+
+<Property name="endTime">
+<Type>%String</Type>
+</Property>
+
+<Property name="resendTarget">
+<Type>%String</Type>
+</Property>
+
+<Property name="fetchCount">
+<Type>%Integer</Type>
+<InitialExpression>0</InitialExpression>
+</Property>
+
+<Property name="resendCount">
+<Type>%Integer</Type>
+<InitialExpression>0</InitialExpression>
+</Property>
+
+<Property name="prospectiveResendCount">
+<Type>%Integer</Type>
+<InitialExpression>0</InitialExpression>
+</Property>
+
+<Property name="doResend">
+<Type>%Integer</Type>
+<InitialExpression>0</InitialExpression>
+</Property>
+
+<Property name="messageStatus">
+<Type>%String</Type>
+</Property>
+
+<Method name="Help">
+<ClassMethod>1</ClassMethod>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	
+	w !,"ResenderHL7 Script"
+	w !,"=================================="
+	w !,"Execute script by calling Run() method"
+	w !,"Run() takes five required arguments and one optional argument. "
+	w !,"argument 1: SourceConfigName. String. REQUIRED. Source component on Ens.MessageHeader table."
+	w !,"argument 2: TargetConfigName. String. REQUIRED. Target component on Ens.MessageHealth table."
+	w !,"arguemnt 3: StartTime. String.  REQUIRED.  Look for transactions processed on/after this timestamp."
+	w !,"argument 4: EndTime.  String. REQUIRED.  Look for transactions processed on/before this timestamp."
+	w !,"argument 5: ResendTarget. String. REQUIRED.  The component that the transactions will be resent to."
+	w !,"argument 6: DoResend. String. OPTIONAL.  Actually perform the resend.  Defaults to 0 (no).",!
+	q $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="Run">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>SourceConfigName:%String,TargetConfigName:%String,StartTime:%String,EndTime:%String,ResendTarget:%String,MessageStatus:%String="Completed",DoResend:%Integer=0</FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	w !,$Classname(),": starting at "_$zdatetime($h,3)
+	w !,"Status turned off"
+	w !,"Running in ",$namespace," namepace on server ",$zconvert($SYSTEM.INetInfo.LocalHostName(),"U")
+	s resender = ##class(Healthix.Common.Util.ResenderHL7).%New()
+	s resender.sourceConfigName=SourceConfigName
+	s resender.targetConfigName=TargetConfigName
+	s resender.startTime=StartTime
+	s resender.endTime=EndTime
+	s resender.resendTarget=ResendTarget
+	s resender.messageStatus=MessageStatus
+	s resender.doResend=DoResend
+	i resender.doResend w !,$Classname(),": resending transactions to ",resender.resendTarget
+	d resender.Query()
+	w !,$Classname(),": ending at "_$zdatetime($h,3)
+	q $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="ResendTransaction">
+<FormalSpec>hl7Message:EnsLib.HL7.Message,*resendIt:%Integer</FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	s tSC=$$$OK
+	
+	;;;put any filtering criteria in this block
+	
+	try{
+		s resendIt=1
+		s sendingFacility=hl7Message.GetSegmentAt(1).GetValueAt(4)
+		s messageType=hl7Message.GetSegmentAt(1).GetValueAt(9.1)
+		s messageTrigger=hl7Message.GetSegmentAt(1).GetValueAt(9.2)
+		s serialNumber=hl7Message.GetSegmentAt(1).GetValueAt(10)
+		s ^Logger("Resender",$Classname(),sendingFacility,messageType,messageTrigger,serialNumber) = $replace($replace($replace($replace($zdatetime($h,3,,6),"-",""),":",""),".","")," ","")
+	}
+	catch tSC {
+		w !!,$Classname(),": ResendTransaction In Catch block"
+    	w !,"error code: ",tSC.Code," ",$System.Status.GetErrorText(tSC.Code)
+    	w !,"error location: ",tSC.Location
+	}
+	
+	q tSC
+]]></Implementation>
+</Method>
+
+<Method name="Query">
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+
+	s tSC=$$$OK
+	
+	try{
+		
+		s queryReturned=""	
+		s stmt = ##class(%SQL.Statement).%New()
+		s stmt.%SelectMode=2 ;display mode
+		s tSC = stmt.%Prepare(..sqlQuery) $$$ThrowOnError(tSC)
+		s rSet = stmt.%Execute(..sourceConfigName,..targetConfigName,..startTime,..endTime)
+		w !!,"Running query..."
+		w !,"SQL = ",..sqlQuery
+		w !,"SourceConfigName = ",..sourceConfigName
+		w !,"TargetConfigName = ",..targetConfigName
+		w !,"StartTime = ",..startTime
+		w !,"EndTime = ",..endTime
+		w !,"MessageStatus = ",..messageStatus
+			
+		while rSet.%Next(){
+			i queryReturned=""{w !,"Processing result set at ",$zdatetime($h,3),! s queryReturned="OK"}
+			i $l(rSet.%GetData(1)) > 0 {
+				s message = ##class(EnsLib.HL7.Message).%New()
+				s message = message.ImportFromString(rSet.%GetData(2))
+				s tSC = ..ResendTransaction(message,.resend) $$$ThrowOnError(tSC)
+				i resend {
+					s ..prospectiveResendCount = ..prospectiveResendCount + 1
+					i ..doResend {
+						i ..resendCount # 5000 = 0 w !,"Resend count ",..resendCount
+						s tSC = ##class(Ens.MessageHeader).ResendDuplicatedMessage(rSet.%GetData(1),,..resendTarget)
+						s ..resendCount = ..resendCount + 1
+					}	
+				}				
+     		}
+     		s ..fetchCount = ..fetchCount + 1
+     	}
+	}
+	catch tSC{
+		w !!,$Classname(),": Query In Catch block"
+    	w !,"error code: ",tSC.Code," ",$System.Status.GetErrorText(tSC.Code)
+    	w !,"error location: ",tSC.Location
+    }	
+	
+	w !!,"EXECUTION SUMMARY:"
+	w !,"--------------------------------------------"
+	w !,"Total Transactions Fetched: "_..fetchCount
+	w !,"Total Propspective Resends: "_..prospectiveResendCount
+	w !,"Total Transactions Resent:  "_..resendCount
+	w !,"--------------------------------------------",!!
+	q tSC
+]]></Implementation>
+</Method>
+</Class>
+
+
+<Class name="Healthix.Common.Util.ResenderIHE">
+<IncludeCode>EnsUtil</IncludeCode>
+<Super>%RegisteredObject</Super>
+<TimeChanged>65404,74480.246634</TimeChanged>
+<TimeCreated>65401,30018.938418</TimeCreated>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Chris. Jira EN-928.  20200122.
+
+]]></Content>
+</UDLText>
+
+<Method name="Resend">
+<FormalSpec>messageID:%String,resendTarget:%String,*dynArray:%DynamicArray</FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	s tSC=$$$OK
+	
+	try{
+		
+		s dynArray = ##class(%DynamicArray).%New()
+		s dynObj = ##class(%DynamicObject).%New()
+		s tSC = ##class(Ens.MessageHeader).ResendDuplicatedMessage(messageID,,resendTarget)
+		i $$$ISOK(tSC) {s status="OK"} else{s status="ERROR"}
+		s dynObj.MessageID = messageID
+		s dynObj.ResendTarget = resendTarget
+		s dynObj.Status = status
+		s tSC = dynArray.%Push(dynObj)
+		s ^Logger("Resender",$Classname(),messageID,resendTarget) = $replace($replace($replace($replace($zdatetime($h,3,,6),"-",""),":",""),".","")," ","")
+	}
+	catch tSC{
+		w !!,$Classname(),": Resend In Catch block"
+    	w !,"error code: ",tSC.Code," ",$System.Status.GetErrorText(tSC.Code)
+    	w !,"error location: ",tSC.Location
+    }	
+	
+	q tSC
+]]></Implementation>
+</Method>
+</Class>
+
+
+<Class name="Healthix.Common.Util.ResenderIHEKeys">
+<Super>%Persistent</Super>
+<TimeChanged>65404,63843.870493</TimeChanged>
+<TimeCreated>65403,34109.756988</TimeCreated>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Chris. Jira EN-928.  20200124.
+
+]]></Content>
+</UDLText>
+
+<Method name="QueryKeys">
+<FormalSpec>*dynArray:%DynamicArray</FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	
+	s tSC=$$$OK
+	
+	try{
+		s dynArray = ##class(%DynamicArray).%New()
+		s stmt=##class(%SQL.Statement).%New()
+ 		s tSC=stmt.%PrepareClassQuery("Healthix.Common.Util.ResenderIHEQueryObject","Extent") $$$ThrowOnError(tSC)
+ 		s rSet=stmt.%Execute()
+ 	
+ 		while rSet.%Next() {
+	 		s dynObj = ##class(%DynamicObject).%New()
+			s dynObj.instance = rSet.%Get("instance")
+			s dynObj.messageID = rSet.%Get("messageID")
+			s dynObj.name = rSet.%Get("name")
+			s dynObj.timeCreatedMs = rSet.%Get("timeCreatedMs")
+	 		s dynObj.status = rSet.%Get("status")
+	 		s tSC = dynArray.%Push(dynObj) $$$ThrowOnError(tSC)	
+	 	}
+	}
+	catch tSC{
+		w !!,$Classname(),": QueryKeys In Catch block"
+    	w !,"error code: ",tSC.Code," ",$System.Status.GetErrorText(tSC.Code)
+    	w !,"error location: ",tSC.Location
+    }	
+	
+	q tSC
+]]></Implementation>
+</Method>
+
+<Storage name="Default">
+<Type>%Library.CacheStorage</Type>
+<DataLocation>^Healthix.CC0AF.ResenderIHEK767D</DataLocation>
+<DefaultData>ResenderIHEKeysDefaultData</DefaultData>
+<IdLocation>^Healthix.CC0AF.ResenderIHEK767D</IdLocation>
+<IndexLocation>^Healthix.CC0AF.ResenderIHEK767I</IndexLocation>
+<StreamLocation>^Healthix.CC0AF.ResenderIHEK767S</StreamLocation>
+<Data name="ResenderIHEKeysDefaultData">
+<Value name="1">
+<Value>%%CLASSNAME</Value>
+</Value>
+</Data>
+</Storage>
+</Class>
+
+
+<Class name="Healthix.Common.Util.ResenderIHEKeysRequestObject">
+<Super>%Persistent</Super>
+<TimeChanged>65404,37367.812557</TimeChanged>
+<TimeCreated>65403,36228.900911</TimeCreated>
+
+<Property name="SourceConfigName">
+<Type>%String</Type>
+</Property>
+
+<Property name="TargetConfigName">
+<Type>%String</Type>
+</Property>
+
+<Property name="Name">
+<Type>%String</Type>
+</Property>
+
+<Property name="OID">
+<Type>%String</Type>
+</Property>
+
+<Property name="StartDateTime">
+<Type>%String</Type>
+</Property>
+
+<Property name="EndDateTime">
+<Type>%String</Type>
+</Property>
+
+<Property name="SQL">
+<Type>%String</Type>
+<InitialExpression>"SELECT %nolock mh.ID, x.id from ens.messageheader mh join hs_message.xmlmessage x on (mh.messagebodyid = x.id) where mh.sourceconfigname = ? and mh.targetconfigname = ? and x.samldata_organizationoid = ? and mh.timecreated between ? and ? and mh.type = 'Request' order by mh.id asc"</InitialExpression>
+<Parameter name="MAXLEN" value="5000"/>
+</Property>
+
+<Property name="devSQL">
+<Type>%String</Type>
+<InitialExpression>"SELECT %nolock mh.ID, x.id from ens.messageheader mh join hs_message.xmlmessage x on (mh.messagebodyid = x.id) where mh.sourceconfigname = ? and mh.targetconfigname = ? and mh.timecreated between ? and ? and mh.type = 'Request' order by mh.id desc"</InitialExpression>
+<Parameter name="MAXLEN" value="5000"/>
+</Property>
+
+<Method name="GetDateTime">
+<FormalSpec>dateTime:%String,*formattedDateTime:%String</FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	s formattedDateTime = $e(dateTime,1,4)_"-"_$e(dateTime,5,6)_"-"_$e(dateTime,7,8)_" "_$e(dateTime,9,10)_":"_$e(dateTime,11,12)_":00"
+	q $$$OK
+]]></Implementation>
+</Method>
+
+<Storage name="Default">
+<Type>%Library.CacheStorage</Type>
+<DataLocation>^Healthix.CC0AF.ResenderIHE37BED</DataLocation>
+<DefaultData>ResenderIHEKeysRequestObjectDefaultData</DefaultData>
+<IdLocation>^Healthix.CC0AF.ResenderIHE37BED</IdLocation>
+<IndexLocation>^Healthix.CC0AF.ResenderIHE37BEI</IndexLocation>
+<StreamLocation>^Healthix.CC0AF.ResenderIHE37BES</StreamLocation>
+<Data name="ResenderIHEKeysRequestObjectDefaultData">
+<Value name="1">
+<Value>%%CLASSNAME</Value>
+</Value>
+<Value name="2">
+<Value>SourceConfigName</Value>
+</Value>
+<Value name="3">
+<Value>TargetConfigName</Value>
+</Value>
+<Value name="4">
+<Value>Name</Value>
+</Value>
+<Value name="5">
+<Value>OID</Value>
+</Value>
+<Value name="6">
+<Value>StartDate</Value>
+</Value>
+<Value name="7">
+<Value>EndDate</Value>
+</Value>
+<Value name="8">
+<Value>SQL</Value>
+</Value>
+<Value name="9">
+<Value>StartDateTime</Value>
+</Value>
+<Value name="10">
+<Value>EndDateTime</Value>
+</Value>
+<Value name="11">
+<Value>devSQL</Value>
+</Value>
+</Data>
+</Storage>
+</Class>
+
+
+<Class name="Healthix.Common.Util.ResenderIHEQuery">
+<Super>%Persistent</Super>
+<TimeChanged>65404,54586.941286</TimeChanged>
+<TimeCreated>65404,45491.97974</TimeCreated>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Chris. Jira EN-928.  20200124.
+
+]]></Content>
+</UDLText>
+
+<Method name="QueryKeys">
+<ClassMethod>1</ClassMethod>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	
+	s tSC=$$$OK
+	
+	k ^Logger($Classname(),"JOB","ERROR")
+	k ^Logger($Classname(),"JOB","DEBUG")
+	s ^Logger($Classname(),"JOB") = "Running"
+	hang 30
+	s debugStmt=0
+	s resultCounter=0
+	s tSC = $i(debugStmt)
+	s ^Logger($Classname(),"JOB","DEBUG",debugStmt,"Entering") = $zdatetime($h,3)
+	s SQL = "SELECT %nolock mh.ID, x.id from ens.messageheader mh join hs_message.xmlmessage x on (mh.messagebodyid = x.id) where mh.sourceconfigname = ? and mh.targetconfigname = ? and x.samldata_organizationoid = ? and mh.timecreated between ? and ? and mh.type = 'Request' order by mh.id asc" 
+	s devSQL = "SELECT %nolock mh.ID, x.id from ens.messageheader mh join hs_message.xmlmessage x on (mh.messagebodyid = x.id) where mh.sourceconfigname = ? and mh.targetconfigname = ? and mh.timecreated between ? and ? and mh.type = 'Request' order by mh.id desc"
+	s tSourceConfigName = ^Logger($Classname(),"JOB","SQL","SourceConfigName")
+	s tTargetConfigName = ^Logger($Classname(),"JOB","SQL","TargetConfigName")
+	s tOID = ^Logger($Classname(),"JOB","SQL","OID")
+	s tStartDateTime = ^Logger($Classname(),"JOB","SQL","StartDateTime")
+	s tEndDateTime = ^Logger($Classname(),"JOB","SQL","EndDateTime")
+	s tSC = ..FixDateTime(tStartDateTime,.formattedStartDateTime)
+	s tSC = ..FixDateTime(tEndDateTime,.formattedEndDateTime)
+	s tSC = $i(debugStmt)
+	s ^Logger($Classname(),"JOB","DEBUG",debugStmt,"formattedStartDateTime") = formattedStartDateTime
+	s tSC = $i(debugStmt)
+	s ^Logger($Classname(),"JOB","DEBUG",debugStmt,"formattedEndDateTime") = formattedEndDateTime
+	
+	try{
+		
+		s instance = $p($SYSTEM,":",2)
+		s tSC = ##class(Healthix.Common.Util.ResenderIHEQueryObject).%DeleteExtent() $$$ThrowOnError(tSC)
+		s stmt = ##class(%SQL.Statement).%New()
+		s stmt.%SelectMode=2 ;display mode
+		i instance = "HXDEV"{
+			s tSC = stmt.%Prepare(devSQL) $$$ThrowOnError(tSC)
+			s rSet = stmt.%Execute(tSourceConfigName,tTargetConfigName,formattedStartDateTime,formattedEndDateTime)
+		}
+		else{
+			s tSC = stmt.%Prepare(SQL) $$$ThrowOnError(tSC)
+			s rSet = stmt.%Execute(tSourceConfigName,tTargetConfigName,tOID,formattedStartDateTime,formattedEndDateTime)
+		}
+		while rSet.%Next(){
+			s tSC = $i(resultCounter)
+			s iheMessage = ##class(Ens.MessageHeader).%OpenId(rSet.%GetData(1))
+			s xmlMessage = ##class(HS.Message.XMLMessage).%OpenId(rSet.%GetData(2))
+			s iheQueryObj = ##class(Healthix.Common.Util.ResenderIHEQueryObject).%New()
+			s iheQueryObj.instance = instance
+			s iheQueryObj.messageID = rSet.%GetData(1)
+			s iheQueryObj.name = xmlMessage.Name
+			s iheQueryObj.timeCreatedMs = $replace($replace($replace($replace(iheMessage.TimeCreated,"-",""),":",""),".","")," ","")
+			i $l(iheQueryObj.timeCreatedMs) < 17{
+				s zeroPadding=""
+				s padding = 17 - $l(iheQueryObj.timeCreatedMs)
+				f i=1:1:padding s zeroPadding=zeroPadding_"0"
+				s iheQueryObj.timeCreatedMs = iheQueryObj.timeCreatedMs_zeroPadding
+			}
+			i $l(iheQueryObj.timeCreatedMs)=17 {s iheQueryObj.status="OK"} else{s iheQueryObj.status="ERROR timestamp length"}
+			s tSC = iheQueryObj.%Save()
+		}	
+		s ^Logger($Classname(),"JOB") = "Completed"
+		s tSC = $i(debugStmt)
+		s ^Logger($Classname(),"JOB","DEBUG",debugStmt,"resultCounter") = resultCounter
+	}
+	catch tSC{
+		s ^Logger($Classname(),"JOB") = "Abend"
+		s ^Logger($Classname(),"JOB","ERROR","Time") = $zdatetime($h,3)
+    	s ^Logger($Classname(),"JOB","ERROR","ErrorDescription") = "QueryKeys In Catch block"
+    	s ^Logger($Classname(),"JOB","ERROR","ErrorLocation") = tSC.Location
+    }	
+	
+	q tSC
+]]></Implementation>
+</Method>
+
+<Method name="FixDateTime">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>dateTime:%String,*formattedDateTime:%String</FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	s formattedDateTime = $e(dateTime,1,4)_"-"_$e(dateTime,5,6)_"-"_$e(dateTime,7,8)_" "_$e(dateTime,9,10)_":"_$e(dateTime,11,12)_":00"
+	q $$$OK
+]]></Implementation>
+</Method>
+
+<Storage name="Default">
+<Type>%Library.CacheStorage</Type>
+<DataLocation>^Healthix.CC0AF.ResenderIHE5C1AD</DataLocation>
+<DefaultData>ResenderIHEQueryDefaultData</DefaultData>
+<IdLocation>^Healthix.CC0AF.ResenderIHE5C1AD</IdLocation>
+<IndexLocation>^Healthix.CC0AF.ResenderIHE5C1AI</IndexLocation>
+<StreamLocation>^Healthix.CC0AF.ResenderIHE5C1AS</StreamLocation>
+<Data name="ResenderIHEQueryDefaultData">
+<Value name="1">
+<Value>%%CLASSNAME</Value>
+</Value>
+<Value name="2">
+<Value>SQL</Value>
+</Value>
+<Value name="3">
+<Value>devSQL</Value>
+</Value>
+</Data>
+</Storage>
+</Class>
+
+
+<Class name="Healthix.Common.Util.ResenderIHEQueryObject">
+<Super>%Persistent</Super>
+<TimeChanged>65404,63775.965588</TimeChanged>
+<TimeCreated>65404,45915.786449</TimeCreated>
+
+<Parameter name="EXTENTQUERYSPEC">
+<Default>instance,messageID,name,timeCreatedMs,status</Default>
+</Parameter>
+
+<Property name="instance">
+<Type>%String</Type>
+</Property>
+
+<Property name="messageID">
+<Type>%String</Type>
+</Property>
+
+<Property name="name">
+<Type>%String</Type>
+</Property>
+
+<Property name="timeCreatedMs">
+<Type>%String</Type>
+</Property>
+
+<Property name="status">
+<Type>%String</Type>
+</Property>
+
+<Storage name="Default">
+<Type>%Library.CacheStorage</Type>
+<DataLocation>^Healthix.CC0AF.ResenderIHED000D</DataLocation>
+<DefaultData>ResenderIHEQueryObjectDefaultData</DefaultData>
+<IdLocation>^Healthix.CC0AF.ResenderIHED000D</IdLocation>
+<IndexLocation>^Healthix.CC0AF.ResenderIHED000I</IndexLocation>
+<StreamLocation>^Healthix.CC0AF.ResenderIHED000S</StreamLocation>
+<Data name="ResenderIHEQueryObjectDefaultData">
+<Value name="1">
+<Value>%%CLASSNAME</Value>
+</Value>
+<Value name="2">
+<Value>instance</Value>
+</Value>
+<Value name="3">
+<Value>messageID</Value>
+</Value>
+<Value name="4">
+<Value>name</Value>
+</Value>
+<Value name="5">
+<Value>timeCreatedMs</Value>
+</Value>
+<Value name="6">
+<Value>status</Value>
+</Value>
+</Data>
+</Storage>
+</Class>
+
+
+<Class name="Healthix.Common.Util.ResenderIHERequestObject">
+<Super>%Persistent</Super>
+<TimeChanged>65404,67530.603231</TimeChanged>
+<TimeCreated>65402,35784.926502</TimeCreated>
+
+<UDLText name="T">
+<Content><![CDATA[
+// this class is no longer used.
+
+]]></Content>
+</UDLText>
+
+<Property name="messageID">
+<Type>%String</Type>
+</Property>
+
+<Property name="sourceConfigName">
+<Type>%String</Type>
+</Property>
+
+<Property name="targetConfigName">
+<Type>%String</Type>
+</Property>
+
+<Property name="documentName">
+<Type>%String</Type>
+</Property>
+
+<Property name="OID">
+<Type>%String</Type>
+</Property>
+
+<Property name="resendTarget">
+<Type>%String</Type>
+</Property>
+
+<Property name="messageStatus">
+<Type>%String</Type>
+<InitialExpression>"Completed"</InitialExpression>
+</Property>
+
+<Property name="doResend">
+<Type>%String</Type>
+<InitialExpression>"0"</InitialExpression>
+</Property>
+
+<Property name="SQL">
+<Type>%String</Type>
+<InitialExpression>"SELECT %nolock mh.ID, x.id from ens.messageheader mh join hs_message.xmlmessage x on (mh.messagebodyid = x.id) where mh.id = ? and mh.sourceconfigname = ? and mh.targetconfigname = ? and x.name = ? and x.samldata_organizationoid = ? and mh.status = ? order by mh.id asc"</InitialExpression>
+<Parameter name="MAXLEN" value="5000"/>
+</Property>
+
+<Storage name="Default">
+<Type>%Library.CacheStorage</Type>
+<DataLocation>^Healthix.CC0AF.ResenderIHE7110D</DataLocation>
+<DefaultData>ResenderIHERequestObjectDefaultData</DefaultData>
+<IdLocation>^Healthix.CC0AF.ResenderIHE7110D</IdLocation>
+<IndexLocation>^Healthix.CC0AF.ResenderIHE7110I</IndexLocation>
+<StreamLocation>^Healthix.CC0AF.ResenderIHE7110S</StreamLocation>
+<Data name="ResenderIHERequestObjectDefaultData">
+<Value name="1">
+<Value>%%CLASSNAME</Value>
+</Value>
+<Value name="2">
+<Value>messageID</Value>
+</Value>
+<Value name="3">
+<Value>sourceConfigName</Value>
+</Value>
+<Value name="4">
+<Value>targetConfigName</Value>
+</Value>
+<Value name="5">
+<Value>documentName</Value>
+</Value>
+<Value name="6">
+<Value>OID</Value>
+</Value>
+<Value name="7">
+<Value>startTime</Value>
+</Value>
+<Value name="8">
+<Value>endTime</Value>
+</Value>
+<Value name="9">
+<Value>resendTarget</Value>
+</Value>
+<Value name="10">
+<Value>messageStatus</Value>
+</Value>
+<Value name="11">
+<Value>doResend</Value>
+</Value>
+<Value name="12">
+<Value>SQL</Value>
+</Value>
+</Data>
+</Storage>
+</Class>
+
+
+<Class name="Healthix.Common.Util.ResenderIHEResponseObject">
+<Super>%Persistent</Super>
+<TimeChanged>65404,67559.296721</TimeChanged>
+<TimeCreated>65402,40374.587102</TimeCreated>
+
+<UDLText name="T">
+<Content><![CDATA[
+// this class is no longer used.
+
+]]></Content>
+</UDLText>
+
+<Property name="Mode">
+<Type>%String</Type>
+</Property>
+
+<Property name="Response">
+<Type>%String</Type>
+</Property>
+
+<Property name="ResendCount">
+<Type>%Integer</Type>
+</Property>
+
+<Property name="ProspectiveResendCount">
+<Type>%Integer</Type>
+</Property>
+
+<Storage name="Default">
+<Type>%Library.CacheStorage</Type>
+<DataLocation>^Healthix.CC0AF.ResenderIHEEDECD</DataLocation>
+<DefaultData>ResenderIHEResponseObjectDefaultData</DefaultData>
+<IdLocation>^Healthix.CC0AF.ResenderIHEEDECD</IdLocation>
+<IndexLocation>^Healthix.CC0AF.ResenderIHEEDECI</IndexLocation>
+<StreamLocation>^Healthix.CC0AF.ResenderIHEEDECS</StreamLocation>
+<Data name="ResenderIHEResponseObjectDefaultData">
+<Value name="1">
+<Value>%%CLASSNAME</Value>
+</Value>
+<Value name="2">
+<Value>Mode</Value>
+</Value>
+<Value name="3">
+<Value>Response</Value>
+</Value>
+<Value name="4">
+<Value>ResendCount</Value>
+</Value>
+<Value name="5">
+<Value>ProspectiveResendCount</Value>
+</Value>
+</Data>
+</Storage>
+</Class>
+
+
+<Class name="Healthix.Common.Util.ResenderIHEService">
+<Super>%CSP.REST</Super>
+<TimeChanged>65404,74838.777758</TimeChanged>
+<TimeCreated>65402,48184.470536</TimeCreated>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Chris. Jira EN-928.  20200124.
+
+]]></Content>
+</UDLText>
+
+<XData name="UrlMap">
+<XMLNamespace>http://www.intersystems.com/urlmap</XMLNamespace>
+<Data><![CDATA[
+<Routes>
+	<Route Url="/Hello" Method="GET" Call="SayHello"/>
+	<Route Url="/iheQuery" Method="GET" Call="RunIHEQuery"/>
+	<Route Url="/iheKeys" Method="GET" Call="GetIHEKeys"/>
+	<Route Url="/iheResender" Method="GET" Call="DoResend"/>
+</Routes>
+]]></Data>
+</XData>
+
+<Method name="SayHello">
+<ClassMethod>1</ClassMethod>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	w !,"Hello World!"
+	q $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="RunIHEQuery">
+<ClassMethod>1</ClassMethod>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	s tSC=$$$OK
+	
+	try{
+		s dynObject = ##class(%DynamicObject).%New()
+		s dynArray = ##class(%DynamicArray).%New()
+		k ^Logger("Healthix.Common.Util.ResenderIHEQuery","JOB","SQL")
+		s ^Logger("Healthix.Common.Util.ResenderIHEQuery","JOB","SQL","SourceConfigName") = $GET(%request.Data("SourceConfigName",1),"")
+		s ^Logger("Healthix.Common.Util.ResenderIHEQuery","JOB","SQL","TargetConfigName") = $GET(%request.Data("TargetConfigName",1),"")
+		s ^Logger("Healthix.Common.Util.ResenderIHEQuery","JOB","SQL","OID") = $GET(%request.Data("OID",1),"")
+		s ^Logger("Healthix.Common.Util.ResenderIHEQuery","JOB","SQL","StartDateTime") = $GET(%request.Data("StartDateTime",1),"")
+		s ^Logger("Healthix.Common.Util.ResenderIHEQuery","JOB","SQL","EndDateTime") = $GET(%request.Data("EndDateTime",1),"")
+		s tProxy = ##class(%ZEN.proxyObject).%New()
+    	s %response.ContentType="application/json"
+    	Job ##class(Healthix.Common.Util.ResenderIHEQuery).QueryKeys()
+    	s taskID = $zchild
+    	s dynObject.Instance = $p($SYSTEM,":",2)
+    	s dynObject.TaskId = taskID
+    	s tSC = dynArray.%Push(dynObject) $$$ThrowOnError(tSC)	
+    	s responseObj = ##class(%DynamicObject).%New()
+    	s responseObj.JOB = dynArray
+    	s ^Logger("Healthix.Common.Util.ResenderIHEQuery","JOB","TaskID") = taskID
+    	s tProxy = responseObj
+   		w tProxy.%ToJSON()
+	}
+	catch ex{
+		w !!,$Classname(),": RunIHEQuery In Catch block"
+    	w !,"error code: ",ex.Code," ",$System.Status.GetErrorText(ex.Code)
+    	w !,"error text: ",$SYSTEM.OBJ.DisplayError(ex.Code)
+    	w !,"error location: ",$p(ex.Location,"^",1)
+	}
+	q tSC
+]]></Implementation>
+</Method>
+
+<Method name="GetIHEKeys">
+<ClassMethod>1</ClassMethod>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	s tSC=$$$OK
+	
+	try{
+		s dynObject = ##class(%DynamicObject).%New()
+    	s tProxy = ##class(%ZEN.proxyObject).%New()
+    	s %response.ContentType="application/json"
+    	s jobStatus = ^Logger("Healthix.Common.Util.ResenderIHEQuery","JOB")
+    	i jobStatus="Completed"{
+    		s keysObj = ##class(Healthix.Common.Util.ResenderIHEKeys).%New()
+    		s tSC = keysObj.QueryKeys(.dynArray) $$$ThrowOnError(tSC)
+    	}
+    	else{s dynArray = ##class(%DynamicArray).%New()}
+    	s dynObject.Instance = $p($SYSTEM,":",2)
+    	s dynObject.JobStatus = jobStatus
+    	s dynObject.IHEKeys = dynArray
+    	s tProxy = dynObject
+   		w tProxy.%ToJSON()
+	}
+	catch ex{
+		w !!,$Classname(),": GetIHEKeys In Catch block"
+    	w !,"error code: ",ex.Code," ",$System.Status.GetErrorText(ex.Code)
+    	w !,"error text: ",$SYSTEM.OBJ.DisplayError(ex.Code)
+    	w !,"error location: ",$p(ex.Location,"^",1)
+	}
+	q tSC
+]]></Implementation>
+</Method>
+
+<Method name="DoResend">
+<ClassMethod>1</ClassMethod>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	s tSC=$$$OK
+	try{
+		s dynObject = ##class(%DynamicObject).%New()
+		s tProxy = ##class(%ZEN.proxyObject).%New()
+    	s %response.ContentType="application/json"
+		s tMessageID = $GET(%request.Data("MessageID",1),"")
+		s tResendTarget = $GET(%request.Data("ResendTarget",1),"")
+		s Resender = ##class(Healthix.Common.Util.ResenderIHE).%New()
+		s tSC = Resender.Resend(tMessageID,tResendTarget,.dynArray)
+		s dynObject.Instance = $p($SYSTEM,":",2)
+		s dynObject.ResendInformation = dynArray
+		s tProxy = dynObject
+   		w tProxy.%ToJSON()
+	}
+	catch tSC{
+		w !!,$Classname(),": DoResend In Catch block"
+    	w !,"error code: ",ex.Code," ",$System.Status.GetErrorText(tSC.Code)
+    	w !,"error text: ",$SYSTEM.OBJ.DisplayError(tSC.Code)
+    	w !,"error location: ",tSC.Location
+	}
+   	q tSC
+]]></Implementation>
+</Method>
+</Class>
+
+
+<Class name="Healthix.Common.Util.ResenderIHEStandalone">
+<IncludeCode>EnsUtil</IncludeCode>
+<Super>%RegisteredObject</Super>
+<TimeChanged>65404,67074.004691</TimeChanged>
+<TimeCreated>65404,67054.583466</TimeCreated>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Chris. Jira EN-928.  20200122.
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Replaced by ResenderIHE.
+
+]]></Content>
+</UDLText>
+
+<UDLText name="T">
+<Content><![CDATA[
+// Keeping for Reference only. This script does not handle FIFO so should NOT be run in production.
+
+]]></Content>
+</UDLText>
+
+<Property name="sqlQuery">
+<Type>%String</Type>
+<Parameter name="MAXLEN" value="5000"/>
+</Property>
+
+<Property name="messageID">
+<Type>%String</Type>
+</Property>
+
+<Property name="sourceConfigName">
+<Type>%String</Type>
+</Property>
+
+<Property name="targetConfigName">
+<Type>%String</Type>
+</Property>
+
+<Property name="documentName">
+<Type>%String</Type>
+</Property>
+
+<Property name="OID">
+<Type>%String</Type>
+</Property>
+
+<Property name="resendTarget">
+<Type>%String</Type>
+</Property>
+
+<Property name="fetchCount">
+<Type>%Integer</Type>
+<InitialExpression>0</InitialExpression>
+</Property>
+
+<Property name="resendCount">
+<Type>%Integer</Type>
+<InitialExpression>0</InitialExpression>
+</Property>
+
+<Property name="prospectiveResendCount">
+<Type>%Integer</Type>
+<InitialExpression>0</InitialExpression>
+</Property>
+
+<Property name="doResend">
+<Type>%Integer</Type>
+<InitialExpression>0</InitialExpression>
+</Property>
+
+<Property name="messageStatus">
+<Type>%String</Type>
+</Property>
+
+<Method name="Help">
+<ClassMethod>1</ClassMethod>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	
+	w !,"ResenderIHE Script"
+	w !,"=================================="
+	w !,"Execute script by calling Run() method"
+	w !,"Run() takes six required arguments and two optional arguments. "
+	w !,"argument 1: SourceConfigName. String. REQUIRED. Source component on Ens.MessageHeader table."
+	w !,"argument 2: TargetConfigName. String. REQUIRED. Target component on Ens.MessageHealth table."
+	w !,"argument 3: Name. String. OPTIONAL. XML document name.  Defaults to XDR_ProvideAndRegisterRequest."
+	w !,"argument 4: OID. String. REQUIRED. Participant OID as defined in HealthShare Registry."
+	w !,"arguemnt 5: StartTime. String.  REQUIRED.  Look for transactions processed on/after this timestamp."
+	w !,"argument 6: EndTime.  String. REQUIRED.  Look for transactions processed on/before this timestamp."
+	w !,"argument 7: ResendTarget. String. REQUIRED.  The component that the transactions will be resent to."
+	w !,"argument 8: DoResend. String. OPTIONAL.  Actually perform the resend.  Defaults to 0 (no).",!
+	q $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="Run">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>iheRequest:Healthix.Common.Util.ResenderIHERequestObject,*iheResponse:Healthix.Common.Util.ResenderIHEResponseObject</FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	w !,$Classname(),": starting at "_$zdatetime($h,3)
+	w !,"Running in ",$namespace," namepace on server ",$zconvert($SYSTEM.INetInfo.LocalHostName(),"U")
+	s resender = ##class(Healthix.Common.Util.ResenderIHE).%New()
+	s resender.messageID = iheRequest.messageID
+	s resender.sourceConfigName = iheRequest.sourceConfigName
+	s resender.targetConfigName=iheRequest.targetConfigName
+	s resender.documentName=iheRequest.documentName
+	s resender.OID="urn:oid:"_iheRequest.OID
+	s resender.resendTarget=iheRequest.resendTarget
+	s resender.doResend=iheRequest.doResend
+	s resender.messageStatus=iheRequest.messageStatus
+	s resender.sqlQuery=iheRequest.SQL
+	s tSC = resender.Query()
+	i $$$ISOK(tSC) {s iheResponse.Response="OK"} else{s iheResponse.Response="ERROR"}
+	i resender.doResend {s iheResponse.Mode="SEND DATA"}else{s iheResponse.Mode="TESTING"}	
+	s iheResponse.ResendCount = resender.resendCount
+	s iheResponse.ProspectiveResendCount = resender.prospectiveResendCount 
+	w !,$Classname(),": ending at "_$zdatetime($h,3)
+	q $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="ResendTransaction">
+<FormalSpec><![CDATA[ID:%String,&XML:HS.Message.XMLMessage,*resendIt:%Integer]]></FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	s tSC=$$$OK
+	
+	;;;put any filtering criteria in this block
+	
+	try{
+		s resendIt=1
+		s documentName = XML.Name
+		s oid = $replace(XML.SAMLData.OrganizationOID,"urn:oid:","")
+		s ^Logger("Resender",$Classname(),..sourceConfigName,..targetConfigName,oid,documentName,ID) = $replace($replace($replace($replace($zdatetime($h,3,,6),"-",""),":",""),".","")," ","")
+	}
+	catch tSC {
+		w !!,$Classname(),": ResendTransaction In Catch block"
+    	w !,"error code: ",tSC.Code," ",$System.Status.GetErrorText(tSC.Code)
+    	w !,"error location: ",tSC.Location
+	}
+	
+	q tSC
+]]></Implementation>
+</Method>
+
+<Method name="Query">
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+
+	s tSC=$$$OK
+	
+	try{
+		
+		s queryReturned=""	
+		s stmt = ##class(%SQL.Statement).%New()
+		s stmt.%SelectMode=2 ;display mode
+		s tSC = stmt.%Prepare(..sqlQuery) $$$ThrowOnError(tSC)
+		s rSet = stmt.%Execute(..messageID,..sourceConfigName,..targetConfigName,..documentName,..OID,..messageStatus)
+		w !!,"Running query..."
+		w !,"SQL = ",..sqlQuery
+		w !,"MessageID = ",..messageID
+		w !,"SourceConfigName = ",..sourceConfigName
+		w !,"TargetConfigName = ",..targetConfigName
+		w !,"DocumentName = ",..documentName
+		w !,"OID = ",..OID
+		w !,"MessageStatus = ",..messageStatus
+	
+		while rSet.%Next(){
+			i queryReturned=""{w !,"Processing result set at ",$zdatetime($h,3),! s queryReturned="OK"}
+			i $l(rSet.%GetData(1)) > 0 {
+				s message = ##class(Ens.MessageHeader).%OpenId(rSet.%GetData(1))
+				s XML = ##class(HS.Message.XMLMessage).%OpenId(rSet.%GetData(2))
+				s tSC = ..ResendTransaction(rSet.%GetData(2),XML,.resend) $$$ThrowOnError(tSC)
+				i resend {
+					s ..prospectiveResendCount = ..prospectiveResendCount + 1
+					i ..doResend {
+						s tSC = ##class(Ens.MessageHeader).ResendDuplicatedMessage(rSet.%GetData(1),,..resendTarget)
+						s ..resendCount = ..resendCount + 1
+					}	
+				}				
+     		}
+     		s ..fetchCount = ..fetchCount + 1
+     	}
+	}
+	catch tSC{
+		w !!,$Classname(),": Query In Catch block"
+    	w !,"error code: ",tSC.Code," ",$System.Status.GetErrorText(tSC.Code)
+    	w !,"error location: ",tSC.Location
+    }	
+	
+	q tSC
+]]></Implementation>
+</Method>
+</Class>
+</Export>
