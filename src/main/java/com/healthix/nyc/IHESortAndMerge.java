@@ -27,13 +27,16 @@ public class IHESortAndMerge {
 	private static SimpleDateFormat fileDatePattern = new SimpleDateFormat(fpattern);
 	private static SimpleDateFormat jobDatePattern = new SimpleDateFormat(jpattern);
 	//private static String devUrl = "http://dev-healthix:57772/csp/healthix/util/iheKeys";
+	//private static String stageAG4Url = "http://192.168.130.20:57772/csp/healthix/util/iheKeys";
+	//private static String stageAG5Url = "http://192.168.130.21:57772/csp/healthix/util/iheKeys";
 	
-	private static String stageAG4Url = "http://192.168.130.20:57772/csp/healthix/util/iheKeys";
-	private static String stageAG5Url = "http://192.168.130.21:57772/csp/healthix/util/iheKeys";
-	
-	
-	private static String instance1 = "AGIHE";
-	private static String instance2 = "AGPUSH";
+	/*
+	 * PRODUCTION CONFIGURATION BELOW
+	 */
+	private static String prodAG4Url = "http://192.168.170.224:57772/csp/healthix/util/iheKeys";
+	private static String prodAG5Url = "http://192.168.170.225:57772/csp/healthix/util/iheKeys";
+	private static String instance1 = "ISSR04";
+	private static String instance2 = "ISSR05";
 	private static String outputPath = "c:/home/en928/";
 	private static String outputFile1 = outputPath + instance1 + "_sorted_IHE_keys.txt";
 	private static String outputFile2 = outputPath + instance2 + "_sorted_IHE_keys.txt";
@@ -61,7 +64,7 @@ public class IHESortAndMerge {
     		System.out.println("\n"+className+": Fetching IHE record keys on "+instance1 + " " + jobDatePattern.format(new Date()));
     		logWriter.write("\n"+ className+": Fetching IHE record keys on " + instance1 + " " + jobDatePattern.format(new Date()) +"\n");
     		JSONArray iheKeysArray1 = new JSONArray();
-    		iheKeysArray1 = ApiHandler.Call(stageAG4Url,"Cache",className);
+    		iheKeysArray1 = ApiHandler.Call(prodAG4Url,"Cache",className);
     		for(int i=0;i<iheKeysArray1.size();i++) {  
     			JSONObject iheObj1 = (JSONObject) iheKeysArray1.get(i);
     			IHEKeyObject kObj1 = new IHEKeyObject(iheObj1.get("instance").toString(),iheObj1.get("messageID").toString(),iheObj1.get("name").toString(),iheObj1.get("timeCreatedMs").toString(),iheObj1.get("status").toString());
@@ -74,7 +77,7 @@ public class IHESortAndMerge {
     		System.out.println("\n"+className+": Fetching IHE record keys on "+instance2 + " " + jobDatePattern.format(new Date()));
     		logWriter.write("\n"+ className+": Fetching IHE record keys on " + instance2 + " " + jobDatePattern.format(new Date()) +"\n");
     		JSONArray iheKeysArray2 = new JSONArray();
-    		iheKeysArray2 = ApiHandler.Call(stageAG5Url,"Cache",className);
+    		iheKeysArray2 = ApiHandler.Call(prodAG5Url,"Cache",className);
     		for(int j=0;j<iheKeysArray2.size();j++) {  
     			JSONObject iheObj2 = (JSONObject) iheKeysArray2.get(j);
     			IHEKeyObject kObj2 = new IHEKeyObject(iheObj2.get("instance").toString(),iheObj2.get("messageID").toString(),iheObj2.get("name").toString(),iheObj2.get("timeCreatedMs").toString(),iheObj2.get("status").toString());

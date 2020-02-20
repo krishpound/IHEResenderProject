@@ -39,20 +39,18 @@ public class IHEResender {
 	private static int instance2DuplicateCount=0;
 	private static int totalResendCount=0;
 	private static int badMessageCount=0;
+	private static String ResendFile = path + "MERGED_SORTED_IHE_KEYS.txt";
 	
 	
 	/*
-	 *  VERY IMPORTANT:  THE FILE BELOW CONTAINS THE ENS.MESSAGEHEADER KEYS THAT YOU WILL BE RESENDING
-	 *  PLEASE CONFIGURE THE PROPERTIES BELOW VERY CAREFULLY FOR PRODUCTION!!!!
+	 * PRODUCTION CONFIGURATION BELOW
 	 */
-	private static String ResendFile = path + "MERGED_SORTED_IHE_KEYS.txt";
-	//private static String instance1Url = "http://dev-healthix:57772/csp/healthix/util/iheResender";
-	//private static String instance2Url = "http://dev2-healthix:57772/csp/healthix/util/iheResender";
-	private static String instance1 = "AGIHE";
-	private static String instance2 = "AGPUSH";
-	private static String instance1Url = "http://192.168.130.20:57772/csp/healthix/util/iheResender";
-	private static String instance2Url = "http://192.168.130.21:57772/csp/healthix/util/iheResender";
-	private static String resendTarget = "BHIX.IHE.XDSb.Repository.AutoReplace";
+	
+	private static String instance1 = "ISSR04";
+	private static String instance2 = "ISSR05";
+	private static String instance1Url = "http://192.168.170.224:57772/csp/healthix/util/iheResender";
+	private static String instance2Url = "http://192.168.170.225:57772/csp/healthix/util/iheResender";
+	private static String resendTarget = "Healthix.IHE.XDR.Recipient.ProvideRouter";
 	
     public static void main(String[] args) {
     	
@@ -73,9 +71,6 @@ public class IHEResender {
     		 Scanner scanner = new Scanner(resendKeysFile);
     	      while (scanner.hasNextLine()) {
     	        String data = scanner.nextLine();
-    	        
-    	        System.out.println("data = "+data);
-    	        
     	        String parms[] = data.split("\t");
     	        
     	        if(parms[4].equalsIgnoreCase("OK")) {
@@ -86,7 +81,7 @@ public class IHEResender {
     	        	queryString = "?MessageID="+resendMessageID+"&ResendTarget="+resendTarget;
     	        	if (resendList.contains(resendToInstance+resendMessageID)){
     	        		System.out.println(resendToInstance + ": Skipping messageID="+resendMessageID+" because it is a duplicate");
-    	        		System.out.println(resendToInstance + ": Skipping messageID="+resendMessageID+" because it is a duplicate\n");
+    	        		logWriter.write(resendToInstance + ": Skipping messageID="+resendMessageID+" because it is a duplicate\n");
     	        		if(resendToInstance.equalsIgnoreCase(instance1)) instance1DuplicateCount++;
     	        		if(resendToInstance.equalsIgnoreCase(instance2)) instance2DuplicateCount++;
     	        	}
@@ -103,7 +98,7 @@ public class IHEResender {
     	        		if(resendToInstance.equalsIgnoreCase(instance2)) instance2ResendCount++;
     	        		totalResendCount++;
     	        		resendList.add(resendToInstance+resendMessageID);
-    	        		Thread.sleep(1000);
+    	        		//Thread.sleep(1000);
     	        	}
     	        }
     	        else {
